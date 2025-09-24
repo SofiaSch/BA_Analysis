@@ -1,51 +1,84 @@
 import pandas as pd
+import json
 import os
+import time
 
-# --- Dynamischen Pfad zum Datenordner erstellen ---
-
-# 1. Finde heraus, wo das Skript selbst liegt
-script_dir = os.path.dirname(os.path.abspath(__file__))
-print(f"Das Skript liegt im Ordner: {script_dir}")
-
-# 2. Definiere das Land, das wir verarbeiten wollen
+# --- Konfiguration ---
 country_name = 'Germany'
+print(f"--- Starte Datenaufbereitung für {country_name} ---")
 
-# 3. Baue den Pfad zum richtigen Datenordner
-# '..' bedeutet "gehe eine Ordnerebene nach oben" (von 'scripts' zu 'Analyse')
+# --- Pfade dynamisch erstellen ---
+script_dir = os.path.dirname(os.path.abspath(__file__))
 data_path = os.path.join(script_dir, '..', 'data', country_name)
-output_file = os.path.join(script_dir, '..', 'data', f'{country_name.lower()}_all_years.csv')
+output_file = os.path.join(script_dir, '..', 'results', f'{country_name.lower()}_all_tenders_raw.csv')
 
-print(f"Suche nach Daten im Ordner: {data_path}")
 
-# --- Ab hier geht dein alter Code weiter ---
+# --- Hilfsfunktion zum Extrahieren der Daten aus einem JSON-Objekt ---
+def extract_tender_data(tender_json, year):
+    """
+    Extrahiert alle für die Analyse benötigten Felder aus einem JSON-Objekt.
+    Gibt ein "flaches" Dictionary zurück.
+    """
+    tender_info = tender_json.get('tender', {})
 
-# Leere Liste, um die einzelnen Jahres-DataFrames zu sammeln
-country_dataframes = []
+    # Extrahiere alle benötigten Felder sicher mit .get()
+    publication_date = tender_json.get('date')
+    end_date = tender_info.get('tenderPeriod', {}).get('endDate')
 
-# Durch alle Dateien im Ordner iterieren
-print(f"Starte Verarbeitung für {country_name}...")
+    tender_value = tender_info.get('value', {}).get('amount')
+    procurement_method = tender_info.get('procurementMethod')
+    procurement_category = tender_info.get('mainProcurementCategory')
+    award_criteria = tender_info.get('awardCriteria')  # NEU
+    tender_id = tender_info.get('id')
 
-# WICHTIG: Prüfen, ob der Pfad überhaupt existiert, bevor wir weitermachen
-if not os.path.isdir(data_path):
-    print(f"FEHLER: Das Verzeichnis '{data_path}' wurde nicht gefunden. Bitte Pfad prüfen!")
-else:
-    for filename in os.listdir(data_path):
-        # Nur Excel-Dateien berücksichtigen
-        if filename.endswith('.xlsx'):
-            # ... (der Rest deines Skripts bleibt gleich) ...
-            print(f"--> Lese Datei: {filename}")
+    # Extrahiere Gebotsstatistiken
+    total_bids, sme_bids = None, None
+    if 'statistics' in tender_json.get('bids', {}):
+        for stat in tender_json['bids']['statistics']:
+            if stat.get('measure') == 'electronicBids':
+                total_bids = stat.get('value')
+            if stat.get('measure') == 'smeBids':
+                sme_bids = stat.get('value')
 
-            file_path = os.path.join(data_path, filename)
-            year = filename.split('_')[-1].replace('.xlsx', '')
-            df = pd.read_excel(file_path)
-            df['year'] = int(year)
-            country_dataframes.append(df)
+    return {
+        'tender_id': tender_id,
+        'publication_date': publication_date,
+        'end_date': end_date,
+        'total_bids': total_bids,
+        'sme_bids': sme_bids,
+        'tender_value': tender_value,
+        'procurement_method': procurement_method,
+        'procurement_category': procurement_category,
+        'award_criteria': award_criteria,  # NEU
+        'year': year  # NEU
+    }
 
-    if country_dataframes:
-        full_country_df = pd.concat(country_dataframes, ignore_index=True)
-        full_country_df.to_csv(output_file, index=False)
-        print(f"\nVerarbeitung für {country_name} abgeschlossen!")
-        print(f"Gespeicherte Datei: {output_file}")
-        print(f"Der Datensatz hat {full_country_df.shape[0]} Zeilen und {full_country_df.shape[1]} Spalten.")
-    else:
-        print(f"Keine Excel-Dateien im Ordner {data_path} gefunden.")
+
+# --- Hauptverarbeitung ---
+all_tenders_list = []
+start_time = time.time()
+
+for filename in os.listdir(data_path):
+    if filename.endswith('.jsonl'):
+        file_path = os.path.join(data_path, filename)
+        year = int(filename.split('_')[-1].replace('.jsonl', ''))  # Extrahiere das Jahr
+        print(f"Verarbeite Datei: {filename}...")
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                tender_data_json = json.loads(line)
+                extracted_data = extract_tender_data(tender_data_json, year)  # Übergebe das Jahr
+                all_tenders_list.append(extracted_data)
+
+# --- DataFrame erstellen und speichern ---
+print("\nErstelle den finalen DataFrame...")
+df_final = pd.DataFrame(all_tenders_list)
+
+os.makedirs(os.path.dirname(output_file), exist_ok=True)
+df_final.to_csv(output_file, index=False, encoding='utf-8-sig')
+
+end_time = time.time()
+print(f"\n--- Verarbeitung für {country_name} abgeschlossen! ---")
+print(f"Dauer: {end_time - start_time:.2f} Sekunden.")
+print(f"Der finale Datensatz hat {df_final.shape[0]} Zeilen und {df_final.shape[1]} Spalten.")
+print(f"Gespeichert unter: {output_file}")

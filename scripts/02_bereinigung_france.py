@@ -3,7 +3,7 @@ import os
 import time
 
 # --- Konfiguration ---
-country_name = 'Germany'
+country_name = 'France'
 print(f"--- Starte Datenbereinigung & Variablenerstellung für {country_name} ---")
 
 # --- Pfade dynamisch erstellen ---
