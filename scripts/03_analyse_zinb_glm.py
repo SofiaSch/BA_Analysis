@@ -6,17 +6,22 @@ import statsmodels.formula.api as smf
 from statsmodels.discrete.count_model import ZeroInflatedNegativeBinomialP
 import patsy
 import warnings
-from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
-# Warnungen unterdrücken für sauberen Output
-warnings.simplefilter('ignore', ConvergenceWarning)
-warnings.simplefilter('ignore', RuntimeWarning)
+# --- WARNUNGEN UNTERDRÜCKEN ---
+# Wir ignorieren HessianInversionWarning, da Nelder-Mead (Schritt 1)
+# keine Standardfehler berechnen kann (das ist erwartet).
+from statsmodels.tools.sm_exceptions import HessianInversionWarning, ConvergenceWarning
+
+warnings.simplefilter('ignore', category=HessianInversionWarning)
+warnings.simplefilter('ignore', category=ConvergenceWarning)
+warnings.simplefilter('ignore', category=RuntimeWarning)
 warnings.simplefilter('ignore', FutureWarning)
 
-print("--- Starte ZINB & GLM Analyse (Finaler Tutor-Code) ---")
+print("--- Starte ZINB & GLM Analyse (Final & Clean) ---")
 
 # Pfade setzen
 script_dir = os.path.dirname(os.path.abspath(__file__))
+# Ggf. anpassen, falls dein 'results' Ordner woanders liegt
 base_path = os.path.join(script_dir, '..', 'results')
 
 # ---------------------------------------------------------
@@ -44,110 +49,96 @@ reg_df = df_final.copy()
 
 # --- Bereinigung & Feature Engineering ---
 
-# 1. Extremwerte filtern (Technischer Schutz für ZINB)
+# 1. Extremwerte filtern
 reg_df = reg_df[reg_df['total_bids'] < 100]
 
-# 2. Duration: Numerisch machen, Bereinigen, Cappen, Standardisieren
+# 2. Duration
 reg_df['duration_days'] = pd.to_numeric(reg_df['duration_days'], errors='coerce')
-reg_df = reg_df[reg_df['duration_days'] > 0]  # Keine negativen Tage
-
-# Capping bei 99% (gegen Ausreißer)
+reg_df = reg_df[reg_df['duration_days'] > 0]
 p99_dur = reg_df['duration_days'].quantile(0.99)
 reg_df['duration_days_capped'] = reg_df['duration_days'].clip(upper=p99_dur)
-
-# Z-Standardisierung
 reg_df['z_duration'] = (
                                reg_df['duration_days_capped'] - reg_df['duration_days_capped'].mean()
                        ) / reg_df['duration_days_capped'].std()
 
-# 3. Tender Value: Log & Standardisierung
+# 3. Tender Value
 reg_df['tender_value'] = pd.to_numeric(reg_df['tender_value'], errors='coerce')
-reg_df = reg_df[reg_df['tender_value'] > 0]  # Nur positive Werte für Log
+reg_df = reg_df[reg_df['tender_value'] > 0]
 reg_df['log_tender_value'] = np.log(reg_df['tender_value'])
 reg_df['z_value'] = (
                             reg_df['log_tender_value'] - reg_df['log_tender_value'].mean()
                     ) / reg_df['log_tender_value'].std()
 
-# 4. H2 Variable: KMU Anteil (Fractional Response)
-# Berechnung nur sinnvoll, wo es überhaupt Gebote gab
+# 4. H2 Variable
 reg_df['sme_share'] = np.where(
     reg_df['total_bids'] > 0,
     reg_df['sme_bids'] / reg_df['total_bids'],
-    np.nan  # NaN setzen, wird später gefiltert
+    np.nan
 )
 reg_df['sme_share'] = reg_df['sme_share'].clip(0, 1)
 
-# 5. Konstante für ZINB Inflation hinzufügen
+# 5. Konstante für Inflation
 reg_df['const'] = 1
 
-# 6. Missing Values entfernen (für saubere Modellierung)
-model_vars = ['total_bids', 'z_duration', 'country', 'z_value',
-              'procurement_method', 'procurement_category', 'year', 'const', 'sme_share']
-# Wir droppen NaNs erst in den spezifischen Modell-Subsets,
-# da sme_share viele NaNs hat (wo total_bids=0)
-
-print(f"Basis-Datensatzgröße nach Bereinigung: {len(reg_df)}")
+print(f"Basis-Datensatzgröße: {len(reg_df)}")
 
 # ---------------------------------------------------------
-# 2. MODELL 1: ZINB (H1 & H3a - Wettbewerbsintensität)
+# 2. MODELL 1: ZINB (H1 & H3a - Wettbewerb)
 # ---------------------------------------------------------
 print("\n" + "=" * 60)
-print("MODELL 1: ZINB (total_bids)")
+print("MODELL 1: ZINB (total_bids) - Zwei-Schritt-Optimierung")
 print("=" * 60)
 
-# Subset für ZINB (alle Fälle, wo IVs da sind)
 zinb_vars = ['total_bids', 'z_duration', 'country', 'z_value',
              'procurement_method', 'procurement_category', 'year', 'const']
 reg_df_z1 = reg_df.dropna(subset=zinb_vars).copy()
 print(f"Stichprobe ZINB: {len(reg_df_z1)}")
 
-# Formel (Count-Teil): Estland ist Referenz durch Treatment('Estonia')
+# Formel
 count_formula = (
     "total_bids ~ z_duration * C(country, Treatment('Estonia')) + "
     "z_value + C(procurement_method) + C(procurement_category) + C(year)"
 )
 
-# Design-Matrizen erstellen
 y_count, X_count = patsy.dmatrices(count_formula, data=reg_df_z1, return_type='dataframe')
-X_infl = reg_df_z1[['const']]  # Konstante Inflation
+X_infl = reg_df_z1[['const']]
 
-# Fitting versuchen (Nelder-Mead ist robuster bei Zero-Inflation)
+zinb_model_instance = ZeroInflatedNegativeBinomialP(
+    endog=y_count,
+    exog=X_count,
+    exog_infl=X_infl,
+    inflation='logit'
+)
+
 try:
-    print("Starte Optimierung (Methode: 'nm' - Nelder-Mead)...")
-    zinb_model = ZeroInflatedNegativeBinomialP(
-        endog=y_count,
-        exog=X_count,
-        exog_infl=X_infl,
-        inflation='logit'
-    ).fit(maxiter=15000, method='nm', disp=False)
+    # Schritt 1: Nelder-Mead (findet Koeffizienten, aber keine p-Werte -> Warnung ignoriert)
+    print("Berechne Startwerte (Nelder-Mead)...")
+    res_nm = zinb_model_instance.fit(maxiter=10000, method='nm', disp=0)
 
-    print(zinb_model.summary())
+    # Schritt 2: BFGS (nutzt Startwerte, berechnet p-Werte)
+    print("Berechne finales Modell (BFGS)...")
+    zinb_result = zinb_model_instance.fit(maxiter=10000, method='bfgs', start_params=res_nm.params, disp=0)
+
+    print(zinb_result.summary())
 
 except Exception as e:
-    print(f"Fehler bei ZINB (nm): {e}")
-    print("Versuche Fallback auf 'bfgs'...")
+    print(f"Fehler: {e}")
+    # Fallback falls alles scheitert
     try:
-        zinb_model = ZeroInflatedNegativeBinomialP(
-            endog=y_count,
-            exog=X_count,
-            exog_infl=X_infl,
-            inflation='logit'
-        ).fit(maxiter=10000, method='bfgs', disp=False)
-        print(zinb_model.summary())
-    except Exception as e2:
-        print(f"Modell konvergiert nicht: {e2}")
+        print("Versuche Newton-CG...")
+        zinb_result = zinb_model_instance.fit(maxiter=10000, method='newton', start_params=res_nm.params, disp=0)
+        print(zinb_result.summary())
+    except:
+        print("Konnte Modell nicht berechnen.")
 
 # ---------------------------------------------------------
-# 3. MODELL 2: GLM Fractional Logit (H2 & H3b - KMU)
+# 3. MODELL 2: GLM (H2 & H3b - KMU)
 # ---------------------------------------------------------
 print("\n" + "=" * 60)
 print("MODELL 2: Fractional Logit (sme_share)")
 print("=" * 60)
 
-# Nur Fälle mit Geboten > 0 (Selektionseffekt vermeiden)
 reg_df_h2 = reg_df.dropna(subset=['sme_share'] + zinb_vars).copy()
-
-# FIX: Werte minimal von 0 und 1 wegschieben, um log(0) Crash zu verhindern
 epsilon = 1e-6
 reg_df_h2['sme_share_safe'] = reg_df_h2['sme_share'].clip(epsilon, 1 - epsilon)
 
@@ -159,8 +150,6 @@ glm_formula = (
 )
 
 try:
-    # Quasi-Maximum Likelihood Estimation (QMLE) via Binomial Family
-    # cov_type='HC0' für robuste Standardfehler
     glm_model = smf.glm(
         formula=glm_formula,
         data=reg_df_h2,
