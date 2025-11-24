@@ -95,7 +95,18 @@ print("\n" + "=" * 60)
 print("ROBUSTHEIT 2: ZINB nur für 'Services'")
 print("=" * 60)
 
+# --- NEU: Zählen der Kategorien ---
+print("Verteilung der Kategorien im Gesamtdatensatz (reg_df):")
+cat_counts = reg_df['procurement_category'].value_counts()
+cat_pct = reg_df['procurement_category'].value_counts(normalize=True) * 100
+stats_df = pd.concat([cat_counts, cat_pct], axis=1, keys=['Anzahl', 'Prozent'])
+print(stats_df.round(1))
+print("-" * 30)
+
+# Filterung auf Services
 df_r2 = reg_df[reg_df['procurement_category'] == 'services'].copy()
+print(f"Analysiere Services (n = {len(df_r2)})...")
+
 # Bereinigen (ohne procurement_category in der Formel, da konstant)
 vars_r2 = ['total_bids', 'z_duration', 'country', 'z_value', 'procurement_method', 'year', 'const']
 df_r2 = df_r2.dropna(subset=vars_r2)
@@ -109,9 +120,10 @@ try:
     y_r2, X_r2 = patsy.dmatrices(formula_r2, data=df_r2, return_type='dataframe')
     X_infl_r2 = df_r2[['const']]
 
+    # Modell berechnen
     model_temp2 = ZeroInflatedNegativeBinomialP(endog=y_r2, exog=X_r2, exog_infl=X_infl_r2, inflation='logit')
-    res_temp2 = model_temp2.fit(maxiter=5000, method='nm', disp=0)
-    res_r2 = model_temp2.fit(maxiter=5000, method='bfgs', start_params=res_temp2.params, disp=0)
+    res_temp2 = model_temp2.fit(maxiter=5000, method='nm', disp=0)  # Startwerte
+    res_r2 = model_temp2.fit(maxiter=5000, method='bfgs', start_params=res_temp2.params, disp=0)  # Final
 
     print(res_r2.summary().tables[1])
 
