@@ -53,8 +53,8 @@ df['duration_days'] = (df['end_date'] - df['publication_date']).dt.days
 
 # 4b: Finalisiere die abhängigen Variablen (Anzahl der Gebote)
 # Fehlende Werte bei den Geboten füllen wir mit 0 auf (Annahme: Kein Eintrag = 0 Gebote)
-df['total_bids'].fillna(0, inplace=True)
-df['sme_bids'].fillna(0, inplace=True)
+df['total_bids'] = df['total_bids'].fillna(0)
+df['sme_bids'] = df['sme_bids'].fillna(0)
 # In saubere Ganzzahlen umwandeln
 df['total_bids'] = df['total_bids'].astype(int)
 df['sme_bids'] = df['sme_bids'].astype(int)
