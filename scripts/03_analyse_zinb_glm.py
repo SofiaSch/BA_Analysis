@@ -207,4 +207,52 @@ try:
 except Exception as e:
     print(f"Fehler GLM: {e}")
 
+# ---------------------------------------------------------
+# 6. BERECHNUNG DER KORRELATIONSMATRIX (Für Anhang A.2)
+# ---------------------------------------------------------
+print("\n" + "="*60)
+print("LATEX CODE FÜR ANHANG A.2 (KORRELATIONSMATRIX)")
+print("="*60)
+
+# Variablen für die Matrix auswählen (nur numerische Kernvariablen)
+corr_vars = ['total_bids', 'sme_share', 'z_duration', 'z_value']
+# Wir nutzen df_model, aber SME-Share ist dort oft NaN (bei 0 Geboten).
+# Für die Korrelation nutzen wir alle verfügbaren Paare (pairwise deletion).
+corr_matrix = df_model[corr_vars].corr()
+
+# Vorbereitung für APA-Stil (untere Dreiecksmatrix)
+mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+apa_corr = corr_matrix.mask(mask)
+
+# Erstellung des DataFrames für den Export
+var_labels = [
+    "1. Gebotsanzahl (total_bids)",
+    "2. KMU-Anteil (sme_share)",
+    "3. Verf.-dauer (z_duration)",
+    "4. Auftragswert (z_value)"
+]
+final_corr_df = pd.DataFrame(index=var_labels)
+
+# Mittelwerte und Standardabweichungen (SD) hinzufügen
+# Hinweis: M/SD für sme_share wird nur über Fälle mit Geboten berechnet
+final_corr_df['M'] = [df_model[v].mean() for v in corr_vars]
+final_corr_df['SD'] = [df_model[v].std() for v in corr_vars]
+
+# Korrelationsspalten 1 bis 4 hinzufügen
+for i in range(len(corr_vars)):
+    col_values = apa_corr.iloc[:, i].values
+    formatted_col = [f"{v:.2f}" if pd.notnull(v) else ("-" if j==i else "")
+                     for j, v in enumerate(col_values)]
+    final_corr_df[str(i+1)] = formatted_col
+
+# LaTeX Output drucken
+print(final_corr_df.round(2).to_latex(
+    column_format='l cc cccc',
+    caption="Mittelwerte, Standardabweichungen und Korrelationen der Kernvariablen",
+    label="tab:correlation_matrix"
+))
+
+print(f"Anmerkung: N = {len(df_model)} (sme_share basiert auf n = {len(df_model_h2)})")
+print("="*60 + "\n")
+
 print("\n--- Analyse beendet ---")
