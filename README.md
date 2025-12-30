@@ -39,6 +39,18 @@ Das Projekt ist in funktionale Module unterteilt, um eine klare Trennung zwische
 ### Analyse ausführen
 Die Skripte sind nummeriert und sollten in der entsprechenden Reihenfolge ausgeführt werden, um die Datenpipeline korrekt zu durchlaufen (01 -> 02 -> 03).
 
+## 📦 Daten-Setup (WICHTIG)
+Aufgrund der Dateigröße sind die Rohdaten nicht in diesem Repository enthalten. 
+
+1. Laden Sie die Daten aus der Cloud herunter: https://drive.google.com/drive/folders/1nJt4yDIWEa7CAUMGau34u-niXPlOxGi_
+2. Erstellen Sie im Hauptverzeichnis dieses Projekts einen Ordner namens `data/`.
+3. Platzieren Sie die JSON-Dateien so, dass folgende Pfadstruktur entsteht:
+   - `data/Estonia/`
+   - `data/France/`
+   - `data/Germany/`
+
+Die Skripte unter `scripts/01_datenaufbereitung_*.py` greifen direkt auf diese Struktur zu.
+
 ## 📊 Methodik & Modelle
 
 Die statistische Auswertung basiert auf zwei Hauptansätzen:
