@@ -1,0 +1,11 @@
+# Ignoriere den kompletten Daten-Ordner
+/data/
+
+# Ignoriere alle CSV und JSON Dateien (falls sie woanders liegen)
+*.csv
+*.json
+
+# PyCharm/IntelliJ spezifische Dateien
+.idea/
+__pycache__/
+*.pyc
