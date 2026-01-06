@@ -8,9 +8,7 @@ print(f"--- Starte Datenbereinigung & Variablenerstellung für {country_name} --
 
 # --- Pfade dynamisch erstellen ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
-# Eingabedatei ist das Ergebnis aus dem ersten Skript
 raw_file_path = os.path.join(script_dir, '..', 'results', f'{country_name.lower()}_all_tenders_raw.csv')
-# Ausgabedatei für den finalen, analysebereiten Datensatz
 final_output_file = os.path.join(script_dir, '..', 'results', f'{country_name.lower()}_analysis_ready.csv')
 
 # --- Schritt 1: Lade die aufbereiteten Rohdaten ---
@@ -18,12 +16,10 @@ print(f"Lade Rohdaten aus: {raw_file_path}")
 start_time = time.time()
 df = pd.read_csv(raw_file_path)
 print(f"-> Fertig in {time.time() - start_time:.2f} Sekunden. {df.shape[0]} Zeilen geladen.")
-initial_rows = len(df) # Wir merken uns die ursprüngliche Zeilenzahl
+initial_rows = len(df)
 
 # --- Schritt 2: Datentypen korrigieren ---
 print("\nSchritt 2: Wandle Datumsspalten um...")
-# Wandel die Datums-Spalten in das korrekte datetime-Format um.
-# Fehlerhafte Einträge werden zu 'NaT' (Not a Time), was als fehlender Wert behandelt wird.
 df['publication_date'] = pd.to_datetime(df['publication_date'], errors='coerce')
 df['end_date'] = pd.to_datetime(df['end_date'], errors='coerce')
 print("-> Datumsspalten erfolgreich umgewandelt.")
@@ -31,7 +27,6 @@ print("-> Datumsspalten erfolgreich umgewandelt.")
 # --- Schritt 3: Fehlende und unlogische Daten filtern ---
 print("\nSchritt 3: Filtere fehlende und unlogische Daten...")
 # 3a: Entferne alle Zeilen, in denen das Start- oder Enddatum fehlt.
-# Ohne diese können wir die Dauer nicht berechnen.
 df.dropna(subset=['publication_date', 'end_date'], inplace=True)
 print(f"-> {initial_rows - len(df)} Zeilen wegen fehlender Daten entfernt.")
 current_rows = len(df)
@@ -41,8 +36,8 @@ df = df[df['end_date'] >= df['publication_date']].copy()
 print(f"-> {current_rows - len(df)} Zeilen wegen unlogischer Daten (Ende vor Start) entfernt.")
 current_rows = len(df)
 
-# 3c (Optional, aber empfohlen): Filtere nur auf wettbewerbliche Verfahren, die für deine Analyse relevant sind.
-competitive_methods = ['open', 'selective'] # Passe diese Liste bei Bedarf an
+# 3c: Filtere nur auf wettbewerbliche Verfahren, die für deine Analyse relevant sind.
+competitive_methods = ['open', 'selective']
 df = df[df['procurement_method'].isin(competitive_methods)].copy()
 print(f"-> {current_rows - len(df)} Zeilen wegen nicht-wettbewerblicher Verfahren entfernt.")
 

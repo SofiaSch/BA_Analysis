@@ -15,13 +15,8 @@ output_file = os.path.join(script_dir, '..', 'results', f'{country_name.lower()}
 
 # --- Hilfsfunktion zum Extrahieren der Daten aus einem JSON-Objekt ---
 def extract_tender_data(tender_json, year):
-    """
-    Extrahiert alle für die Analyse benötigten Felder aus einem JSON-Objekt.
-    Gibt ein "flaches" Dictionary zurück.
-    """
     tender_info = tender_json.get('tender', {})
 
-    # Extrahiere alle benötigten Felder sicher mit .get()
     publication_date = tender_json.get('date')
     end_date = tender_info.get('tenderPeriod', {}).get('endDate')
 

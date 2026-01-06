@@ -1,6 +1,5 @@
 import pandas as pd
 import os
-import numpy as np
 
 print("--- Prüfung der Auftragswerte (Schwellenwerte) ---")
 
@@ -30,9 +29,6 @@ min_val = values.min()
 max_val = values.max()
 
 # Anteile berechnen
-# EU-Schwellenwert für Dienstleistungen/Lieferungen (Zentralregierung) ca. 140.000€, sonst ca. 215.000€
-# Bauleistungen ca. 5.3 Mio €.
-# Wir nehmen mal 215.000 € als grobe Grenze für "Oberschwellig" bei Services.
 
 count_under_25k = len(values[values < 25000])
 count_under_100k = len(values[values < 100000])

@@ -1,15 +1,8 @@
 import pandas as pd
 import os
 
-# --- KORREKTUR START ---
-# Finde den absoluten Pfad des Verzeichnisses, in dem das Skript liegt (also .../scripts/)
 script_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Baue den korrekten Pfad zum 'results'-Ordner, indem wir eine Ebene nach oben gehen ('..')
-# und dann in 'results' wechseln.
 base_path = os.path.join(script_dir, '..', 'results')
-# --- KORREKTUR ENDE ---
-
 
 # Eine Liste der Länder und ihrer zugehörigen Dateinamen
 countries = {
@@ -30,7 +23,6 @@ countries = {
 # Dictionaries, um die Ergebnisse zu speichern
 raw_counts = {}
 ready_counts = {}
-# --- NEU: Dictionary für die Zählung der Null-Gebote ---
 zero_bid_counts = {}
 
 print("--- Beginne mit der Analyse der Dateien ---\n")
@@ -41,7 +33,7 @@ for country, files in countries.items():
         # Pfad zur Rohdatendatek erstellen
         raw_path = os.path.join(base_path, files['raw'])
         # CSV einlesen und Zeilen zählen
-        raw_df = pd.read_csv(raw_path, low_memory=False)  # low_memory=False hinzugefügt, um DtypeWarning zu vermeiden
+        raw_df = pd.read_csv(raw_path, low_memory=False)
         raw_counts[country] = len(raw_df)
 
         # Pfad zur bereinigten Datei erstellen
@@ -50,7 +42,6 @@ for country, files in countries.items():
         ready_df = pd.read_csv(ready_path, low_memory=False)
         ready_counts[country] = len(ready_df)
 
-        # --- NEU: Zähle Nullen für H1-Diagnose ---
         # Überprüfe, ob die Spalte 'total_bids' existiert
         if 'total_bids' in ready_df.columns:
             # Zähle, wie oft total_bids == 0 ist
@@ -59,7 +50,6 @@ for country, files in countries.items():
         else:
             print(f"WARNUNG: Spalte 'total_bids' nicht in {files['ready']} gefunden.")
             zero_bid_counts[country] = 0
-        # --- ENDE NEU ---
 
         print(f"Erfolgreich verarbeitet: {country}")
 
@@ -91,7 +81,6 @@ if raw_counts and ready_counts:
     print("----------------------------------------------------")
     print(f"Gesamteinträge (bereinigt):  {total_ready:,}\n")
 
-    # --- NEU: Ausgabe der Zero-Inflation-Diagnose ---
     if zero_bid_counts:
         print("--- Diagnose: Anteil der Null-Gebote (total_bids == 0) in bereinigten Daten ---")
 
@@ -99,12 +88,11 @@ if raw_counts and ready_counts:
         df_zeros_summary = pd.DataFrame({
             'Gesamt (bereinigt)': ready_counts,
             'davon Null-Gebote': zero_bid_counts
-        }).reindex(countries.keys())  # Stellt sicher, dass die Reihenfolge DE, FR, EE ist
+        }).reindex(countries.keys())
 
         df_zeros_summary['Anteil Nullen (%)'] = (df_zeros_summary['davon Null-Gebote'] / df_zeros_summary[
             'Gesamt (bereinigt)']) * 100
 
-        # Gib die Tabelle im Markdown-Format aus (sehr sauber in der Konsole)
         print(df_zeros_summary.to_markdown(floatfmt=",.2f"))
 
         # Gesamtergebnis

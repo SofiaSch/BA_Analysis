@@ -1,14 +1,11 @@
 import pandas as pd
 import numpy as np
 import os
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
 from statsmodels.discrete.count_model import ZeroInflatedNegativeBinomialP
 import patsy
 import warnings
 from statsmodels.tools.sm_exceptions import HessianInversionWarning, ConvergenceWarning
 
-# Warnungen unterdrücken
 warnings.simplefilter('ignore', category=HessianInversionWarning)
 warnings.simplefilter('ignore', category=ConvergenceWarning)
 warnings.simplefilter('ignore', category=RuntimeWarning)
@@ -52,7 +49,6 @@ reg_df['const'] = 1
 
 # -------------------------------------------------------------------
 # ROBUSTHEITS-CHECK 1: Zusätzliche Kontrolle 'award_criteria'
-# Wir prüfen, ob das Ergebnis stabil bleibt, wenn wir das Vergabekriterium (Preis vs. Qualität) aufnehmen.
 # -------------------------------------------------------------------
 print("\n" + "=" * 60)
 print("ROBUSTHEIT 1: ZINB mit 'award_criteria'")
@@ -89,13 +85,12 @@ except Exception as e:
 
 # -------------------------------------------------------------------
 # ROBUSTHEITS-CHECK 2: Nur 'Services' (Dienstleistungen)
-# Wir prüfen, ob die Effekte in der größten Kategorie auch alleine gelten.
 # -------------------------------------------------------------------
 print("\n" + "=" * 60)
 print("ROBUSTHEIT 2: ZINB nur für 'Services'")
 print("=" * 60)
 
-# --- NEU: Zählen der Kategorien ---
+# --- Zählen der Kategorien ---
 print("Verteilung der Kategorien im Gesamtdatensatz (reg_df):")
 cat_counts = reg_df['procurement_category'].value_counts()
 cat_pct = reg_df['procurement_category'].value_counts(normalize=True) * 100

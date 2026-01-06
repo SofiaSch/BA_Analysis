@@ -8,7 +8,6 @@ import patsy
 import warnings
 from statsmodels.tools.sm_exceptions import HessianInversionWarning, ConvergenceWarning
 
-# Warnungen unterdrücken
 warnings.simplefilter('ignore', category=HessianInversionWarning)
 warnings.simplefilter('ignore', category=ConvergenceWarning)
 warnings.simplefilter('ignore', category=RuntimeWarning)
@@ -25,7 +24,6 @@ base_path = os.path.join(script_dir, '..', 'results')
 # ---------------------------------------------------------
 print("Lade Daten...")
 try:
-    # Hinweis: Passe die Dateinamen ggf. an, falls sie bei dir anders heißen
     df_de = pd.read_csv(os.path.join(base_path, 'germany_analysis_ready.csv'), low_memory=False)
     df_fr = pd.read_csv(os.path.join(base_path, 'france_analysis_ready.csv'), low_memory=False)
     df_ee = pd.read_csv(os.path.join(base_path, 'estonia_analysis_ready.csv'), low_memory=False)
@@ -60,8 +58,6 @@ reg_df = reg_df[reg_df['total_bids'] < 100]
 reg_df['duration_days'] = pd.to_numeric(reg_df['duration_days'], errors='coerce')
 reg_df = reg_df[reg_df['duration_days'] > 0]
 p99_dur = reg_df['duration_days'].quantile(0.99)
-# Wir nutzen für die Statistik die gecappten Werte, um Ausreißer nicht zu stark zu gewichten,
-# aber für das Verständnis sind "echte Tage" wichtig.
 reg_df['duration_days_capped'] = reg_df['duration_days'].clip(upper=p99_dur)
 
 # Z-Standardisierung für Regression
@@ -78,7 +74,6 @@ reg_df['z_value'] = (
 ) / reg_df['log_tender_value'].std()
 
 # D. H2 Variable (KMU Anteil)
-# Logik: Wenn Bids > 0, berechne Anteil. Wenn Bids = 0, ist Anteil NaN (nicht 0!)
 reg_df['sme_share'] = np.where(
     reg_df['total_bids'] > 0,
     reg_df['sme_bids'] / reg_df['total_bids'],
@@ -132,11 +127,10 @@ def zero_share_pct(x):
     return (x == 0).mean() * 100
 
 # Aggregation der Statistiken nach Land
-# Wir nutzen duration_days_capped für die Statistik, da dies robuster ist
 desc_stats = df_model.groupby('country').agg({
     'duration_days_capped': ['mean', 'std', 'median'],
     'total_bids': ['mean', 'std', zero_share_pct],
-    'sme_share': ['mean', 'std'], # Ignoriert automatisch NaNs (also Fälle mit 0 Geboten)
+    'sme_share': ['mean', 'std'],
     'tender_value': ['median']
 })
 
@@ -183,10 +177,8 @@ except Exception as e:
 
 # MODELL 2: GLM (H2 & H3 - KMU Anteil)
 print("\nMODELL 2: Fractional Logit (sme_share)")
-# Filtern auf erfolgreiche Ausschreibungen (Gebote > 0)
 df_model_h2 = df_model.dropna(subset=['sme_share']).copy()
 
-# Epsilon-Korrektur für Fractional Logit (0/1 Ränder)
 epsilon = 1e-6
 df_model_h2['sme_share_safe'] = df_model_h2['sme_share'].clip(epsilon, 1-epsilon)
 
@@ -216,8 +208,6 @@ print("="*60)
 
 # Variablen für die Matrix auswählen (nur numerische Kernvariablen)
 corr_vars = ['total_bids', 'sme_share', 'z_duration', 'z_value']
-# Wir nutzen df_model, aber SME-Share ist dort oft NaN (bei 0 Geboten).
-# Für die Korrelation nutzen wir alle verfügbaren Paare (pairwise deletion).
 corr_matrix = df_model[corr_vars].corr()
 
 # Vorbereitung für APA-Stil (untere Dreiecksmatrix)
@@ -234,7 +224,6 @@ var_labels = [
 final_corr_df = pd.DataFrame(index=var_labels)
 
 # Mittelwerte und Standardabweichungen (SD) hinzufügen
-# Hinweis: M/SD für sme_share wird nur über Fälle mit Geboten berechnet
 final_corr_df['M'] = [df_model[v].mean() for v in corr_vars]
 final_corr_df['SD'] = [df_model[v].std() for v in corr_vars]
 

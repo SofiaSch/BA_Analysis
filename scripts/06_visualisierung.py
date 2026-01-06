@@ -9,7 +9,6 @@ from statsmodels.discrete.count_model import ZeroInflatedNegativeBinomialP
 import patsy
 import warnings
 
-# Warnungen unterdrücken
 warnings.simplefilter('ignore')
 
 print("--- Erstelle Visualisierungen (Prediction Plots) - FINAL FIX ---")
@@ -74,7 +73,7 @@ plt.savefig(os.path.join(output_dir, '01_boxplot_dauer.png'), dpi=300)
 plt.close()
 
 # =============================================================================
-# MODELLE FIT (Nötig für Vorhersage)
+# MODELLE FIT
 # =============================================================================
 print("Berechne Modelle für Vorhersage (bitte warten)...")
 
@@ -84,10 +83,9 @@ zinb_vars = ['total_bids', 'z_duration', 'country', 'z_value', 'procurement_meth
 df_z1 = reg_df.dropna(subset=zinb_vars)
 formula_zinb = "total_bids ~ z_duration * C(country, Treatment('Estonia')) + z_value + C(procurement_method) + C(procurement_category) + C(year)"
 
-# WICHTIG: Wir speichern X_z, um später das "Design" wiederzuverwenden!
 y_z, X_z = patsy.dmatrices(formula_zinb, df_z1, return_type='dataframe')
 
-# Modell fitten (für Plot reicht NM oder BFGS ohne SEs)
+# Modell fitten
 try:
     model_zinb = ZeroInflatedNegativeBinomialP(endog=y_z, exog=X_z, exog_infl=df_z1[['const']], inflation='logit').fit(
         maxiter=1000, method='bfgs', disp=0)
@@ -99,7 +97,6 @@ except:
 df_glm = reg_df.dropna(subset=['sme_share'] + zinb_vars).copy()
 df_glm['sme_share_safe'] = df_glm['sme_share'].clip(1e-6, 1 - 1e-6)
 formula_glm = "sme_share_safe ~ z_duration * C(country, Treatment('Estonia')) + z_value + C(procurement_method) + C(procurement_category) + C(year)"
-# Auch hier GLM fitten
 model_glm = smf.glm(formula=formula_glm, data=df_glm, family=sm.families.Binomial(link=sm.families.links.logit())).fit()
 
 
@@ -109,7 +106,7 @@ def create_pred_data(df_orig):
     days_range = (z_range * duration_std) + duration_mean
 
     pred_list = []
-    # Wir nutzen Modus (häufigster Wert) für kategoriale Variablen
+
     mode_year = df_orig['year'].mode()[0]
     mode_method = df_orig['procurement_method'].mode()[0]
     mode_cat = df_orig['procurement_category'].mode()[0]
@@ -137,8 +134,6 @@ df_pred = create_pred_data(reg_df)
 # =============================================================================
 print("Erstelle Plot 2: Wettbewerbsintensität...")
 
-# FIX: Wir nutzen build_design_matrices mit dem Bauplan (design_info) aus dem Training (X_z)
-# Das stellt sicher, dass ALLE Spalten (auch die für andere Jahre) da sind, selbst wenn df_pred nur ein Jahr enthält.
 X_pred_z = patsy.build_design_matrices([X_z.design_info], df_pred, return_type='dataframe')[0]
 
 # Vorhersage
@@ -161,8 +156,6 @@ plt.close()
 # =============================================================================
 print("Erstelle Plot 3: KMU-Anteil...")
 
-# GLM predict via formula api ist intelligenter und braucht den Fix meist nicht,
-# aber falls doch, macht statsmodels das intern.
 pred_probs = model_glm.predict(df_pred)
 df_pred['pred_sme'] = pred_probs
 
